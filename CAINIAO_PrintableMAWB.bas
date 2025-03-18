@@ -1406,7 +1406,7 @@ Sub GenLoading(cellRow, cellColumn)
         For i = 1 To rowCount
             Dim pcs As String
             pcs = IIf(loadingData(i, 1) = 1, "PKG", "PKGS")
-            loading = loading & loadingData(i, 4) & " / " & loadingData(i, 5) & " / " & loadingData(i, 1) & " " & pcs & " / " & loadingData(i, 2) & "K" & vbNewLine
+            loading = loading & loadingData(i, 4) & " / " & loadingData(i, 5) & " / " & loadingData(i, 1) & " " & pcs & " / " & loadingData(i, 2) & " K" & vbNewLine
         Next i
     End If
     
@@ -1419,7 +1419,24 @@ Sub GenLoading(cellRow, cellColumn)
             .Offset(j, 0).Value = loadingLines(j)
         Next j
     End With
+
+    ' Calculate MAWBPCS and MAWBWT by reading loadingData again
+    For i = 1 To rowCount
+        Select Case loadingData(i, 3)
+            Case "P"
+                MAWBPCS = MAWBPCS + 1
+            Case "X", "B"
+                MAWBPCS = MAWBPCS + loadingData(i, 1)
+        End Select
+        MAWBWT = MAWBWT + loadingData(i, 2)
+    Next i
     
+    ' Assign MAWBPCS and MAWBWT to the worksheet
+    With wbMAWB.Worksheets(1)
+        .Range("A32").Value = MAWBPCS
+        .Range("C32").Value = MAWBWT
+    End With
+
     ' Clean up
     wbLoadingData.Close
     Set rng = Nothing
