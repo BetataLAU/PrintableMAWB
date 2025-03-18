@@ -1342,7 +1342,6 @@ End Sub
 
 
 Sub GenLoading(cellRow, cellColumn)
-    
     Dim currentPath As String
     currentPath = wbOrigin.Path
     
@@ -1350,89 +1349,82 @@ Sub GenLoading(cellRow, cellColumn)
     Dim wbLoadingData As Workbook
     Set wbLoadingData = Workbooks.Open(currentPath & "\HC HIN LISTING.xlsx", ReadOnly:=True)
     
-    ' Set the value to search for
-    Dim searchValue As String
-    searchValue = wbOrigin.Worksheets(1).Range("C" & cellRow)
-    searchValue = Mid(searchValue, 1, 8) & " " & Mid(searchValue, 9, 4) 'Since dest target ve number formatting like this.
-
-    ' Set the range (column) to search
+    ' Set the first worksheet as wsLoadingData
+    Dim wsLoadingData As Worksheet
+    Set wsLoadingData = wbLoadingData.Worksheets(1)
+    
+    ' Read the MAWB number from column C in the current worksheet
+    Dim MAWBNumber As String
+    MAWBNumber = Format(wbOrigin.Worksheets(1).Range("C" & cellRow).Value, "000-0000 0000")
+    
+    ' Search for the MAWB number in wsLoadingData
     Dim rng As Range
     Dim foundCell As Range
-    Set rng = wbLoadingData.Worksheets(1).Range("A:A") 'Change "A:A" to your column
+    Set rng = wsLoadingData.Range("A:A")
+    Set foundCell = rng.Find(What:=MAWBNumber, LookIn:=xlValues, LookAt:=xlWhole)
     
-    'testing
-'    MsgBox TypeName(wbLoadingData.Worksheets(1).Range("A:A").value)
-
-    ' Use the Find method to search for the value
-    Set foundCell = rng.Find(What:=searchValue, LookIn:=xlValues, LookAt:=xlPart)
-
     ' Check if the value was found
-'    If Not foundCell Is Nothing Then
-'        MsgBox "Value found at " & foundCell.row
-'    Else
-'        MsgBox "Value not found"
-'    End If
+    If foundCell Is Nothing Then
+        MsgBox "MAWB number not found in HC HIN LISTING.xlsx"
+        Exit Sub
+    End If
     
-    'Save loading / contour / pkgs / wt value.
-    Dim ULD As String
-    Dim contour As String
-    Dim pkgs As String
-    Dim wt As String
-    Dim preDeclType As String
+    ' Save the cells from C to H into a 2D array
+    Dim loadingData() As Variant
+    Dim rowCount As Long
+    rowCount = 1
     
-    If wbLoadingData.Worksheets(1).Range("C" & foundCell.row) = wbOrigin.Worksheets(1).Range("I" & cellRow) Then
-        wt = wbLoadingData.Worksheets(1).Range("D" & foundCell.row)
+    Do While IsEmpty(wsLoadingData.Cells(foundCell.row + rowCount, 1))
+        rowCount = rowCount + 1
+    Loop
+    
+    ReDim loadingData(1 To rowCount, 1 To 6)
+    
+    Dim i As Long
+    For i = 1 To rowCount
+        loadingData(i, 1) = wsLoadingData.Cells(foundCell.Row + i - 1, 3).Value ' PCS
+        loadingData(i, 2) = wsLoadingData.Cells(foundCell.Row + i - 1, 4).Value ' WT
+        loadingData(i, 3) = wsLoadingData.Cells(foundCell.Row + i - 1, 6).Value ' PreDecl type
+        loadingData(i, 4) = wsLoadingData.Cells(foundCell.Row + i - 1, 7).Value ' ULD
+        loadingData(i, 5) = wsLoadingData.Cells(foundCell.Row + i - 1, 8).Value ' Contour
+    Next i
+    
+    ' Generate the "Loading" format
+    Dim loading As String
+    loading = ""
+    
+    If rowCount = 1 Then
+        Select Case loadingData(1, 3)
+            Case "P"
+                loading = "ALL LOADED ONTO " & loadingData(1, 4) & " / " & loadingData(1, 5) & " (PREPACK)"
+            Case "B"
+                loading = ""
+            Case Else
+                loading = "ALL LOADED ONTO " & loadingData(1, 4) & " / " & loadingData(1, 5)
+        End Select
     Else
-        MsgBox "Diff pcs between 2 tabels, pls close & check."
-        Exit Sub
+        For i = 1 To rowCount
+            Dim pcs As String
+            pcs = IIf(loadingData(i, 1) = 1, "PKG", "PKGS")
+            loading = loading & loadingData(i, 4) & " / " & loadingData(i, 5) & " / " & loadingData(i, 1) & " " & pcs & " / " & loadingData(i, 2) & "K" & vbNewLine
+        Next i
     End If
     
-    ULD = wbLoadingData.Worksheets(1).Range("G" & foundCell.row)
-    contour = wbLoadingData.Worksheets(1).Range("H" & foundCell.row)
-    pkgs = wbLoadingData.Worksheets(1).Range("C" & foundCell.row)
-    wt = wbLoadingData.Worksheets(1).Range("D" & foundCell.row)
-    preDeclType = wbLoadingData.Worksheets(1).Range("F" & foundCell.row)
+    ' Assign the "Loading" to wbMAWB
+    With wbMAWB.Worksheets(1).Range("A37")
+        Dim loadingLines() As String
+        loadingLines = Split(loading, vbNewLine)
+        Dim j As Long
+        For j = 0 To UBound(loadingLines)
+            .Offset(j, 0).Value = loadingLines(j)
+        Next j
+    End With
     
-    'Check ULD exist?
-    If ULD = "" Then
-        Exit Sub
-    End If
-    
-    'Gen completed loading sentence.
-    Dim completeLoading As String
-    
-    Select Case preDeclType
-        Case Is = "P"
-            completeLoading = pkgs & " PKGS LDD ON " & ULD & " / " & contour & " (PRE-PACK)"
-        Case Is = "X"
-            completeLoading = pkgs & " PKGS LDD ON " & ULD & " / " & contour & " (MIX-LOAD)"
-        Case Is = "B"
-            wbMAWB.Worksheets(1).Range("A36").value = ""
-            completeLoading = ""
-    End Select
-    
-    
-    
-    
-'    If InStr(wbMAWB.Worksheets(1).Range("A27"), "BUP") = 0 Then  '0 means not found, >1 means is found.
-'        completeLoading = pkgs & " PKGS LDD ON " & ULD & " / " & contour & " (MIX-LOAD)"
-'    Else
-'        completeLoading = pkgs & " PKGS LDD ON " & ULD & " / " & contour & " (PRE-PACK)"
-'        'MsgBox completeLoading
-'    End If
-    
-
-    
-    'Assign WT & LOADING to wbMAWB.
-    wbMAWB.Worksheets(1).Range("C32").value = wt
-    wbMAWB.Worksheets(1).Range("A37").value = completeLoading
-    
+    ' Clean up
     wbLoadingData.Close
-    
     Set rng = Nothing
     Set foundCell = Nothing
     Set wbLoadingData = Nothing
-
 End Sub
 
 
@@ -1507,69 +1499,6 @@ Sub MoveFile()
     Set fso = Nothing
     
 End Sub
-
-'Sub AddChopToCompressedPDF()
-'
-'    Dim command As String
-'
-''    'Construct the command.
-''    command = "pdftk.exe " & _
-''              """\MAWB xls files\MAWBBASE_compressed.pdf"" stamp " & _
-''              """\MAWB xls files\TEMP" & Left(wbMAWB.Name, 12) & ".pdf"" output " & _
-''              """" & wbMAWB.Path & "\" & Left(wbMAWB.Name, 12) & " MAWB.pdf"""
-'
-'    'Construct the command.
-'    command = "pdftk.exe " & _
-'              "MAWBBASE_compressed.pdf stamp " & _
-'              "TEMP" & Left(wbMAWB.Name, 12) & ".pdf output " & _
-'              """" & Left(wbMAWB.Name, 12) & " MAWB.pdf"""
-'
-'
-'    'Generate a batch file.
-'    Dim filePath As String
-'    Dim fileNumber As Integer
-'    Dim batchCommands As String
-'
-'    ' Define the path where the batch file will be saved
-'    filePath = wbMAWB.Path & "\run_pdftk.bat"
-'
-'    ' Define the commands to be written to the batch file    "@echo off" & "cd ""MAWB xls files""" & _  vbCrLf & _
-'
-'    batchCommands = command & _
-'                    vbCrLf & _
-'                    "del """ & wbMAWB.Path & "\TEMP" & Left(wbMAWB.Name, 12) & ".pdf""" & _
-'                    vbCrLf & _
-'                    "pause"
-'
-'
-'    ' Get a free file number
-'    fileNumber = FreeFile
-'
-'    ' Open the file for output
-'    Open filePath For Output As #fileNumber
-'
-'    ' Write the commands to the file
-'    Print #fileNumber, batchCommands
-'
-'    ' Close the file
-'    Close #fileNumber
-'
-'    'MsgBox "Batch file created successfully at " & filePath
-'
-'
-''    Dim wsh As Object
-''    Set wsh = CreateObject("WScript.Shell")
-''    Dim CMDcommand As String
-''    command = "cmd.exe /c " "C:\Path\To\Your\BatchFile\example.bat"""
-''    wsh.Run CMDcommand, 1, True
-'
-'
-'    'command = "cmd.exe /c """ & wbMAWB.Path & "\run_pdftk.bat"""
-'    command = wbMAWB.Path & "\run_pdftk.bat"
-''    shell command, vbHide
-'    shell command
-'
-'End Sub
 
 
 Sub AddChopToCompressedPDF()
