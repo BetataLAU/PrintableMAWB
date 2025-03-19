@@ -1420,6 +1420,12 @@ Sub GenLoading(cellRow, cellColumn)
         Next j
     End With
 
+    ' Declare variables for MAWBPCS and MAWBWT
+    Dim MAWBPCS As Long
+    Dim MAWBWT As Double
+    MAWBPCS = 0
+    MAWBWT = 0
+    
     ' Calculate MAWBPCS and MAWBWT by reading loadingData again
     For i = 1 To rowCount
         Select Case loadingData(i, 3)
